@@ -1,0 +1,255 @@
+{
+  "name": "mcpstat-dashboard",
+  "displayName": "mcpstat - MCP Usage & Latency Dashboard",
+  "description": "Monitor MCP tool, prompt and resource usage, errors and latency from servers instrumented with mcpstat.",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#5b21b6",
+    "theme": "dark"
+  },
+  "version": "0.3.0",
+  "publisher": "vadikus",
+  "author": {
+    "name": "Vadim Bakhrenkov",
+    "url": "https://vadim.dev"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Visualization"
+  ],
+  "keywords": [
+    "mcpstat",
+    "mcp",
+    "model context protocol",
+    "mcp server",
+    "mcp tools",
+    "observability",
+    "monitoring",
+    "analytics",
+    "statistics",
+    "tool usage",
+    "latency",
+    "errors",
+    "dashboard",
+    "sqlite",
+    "python"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tekkidev/mcpstat-vscode.git"
+  },
+  "homepage": "https://mcpstat.vadim.dev",
+  "bugs": {
+    "url": "https://github.com/tekkidev/mcpstat-vscode/issues"
+  },
+  "main": "./dist/extension.js",
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "MCP connections and database access use workspace-specific configuration."
+    },
+    "virtualWorkspaces": {
+      "supported": false
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "mcpstat.openDashboard",
+        "title": "mcpstat: Open Dashboard",
+        "icon": "$(graph-line)"
+      },
+      {
+        "command": "mcpstat.connectDatabase",
+        "title": "mcpstat: Connect Statistics Database",
+        "icon": "$(database)"
+      },
+      {
+        "command": "mcpstat.connectServer",
+        "title": "mcpstat: Connect MCP Server",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "mcpstat.checkDiscovery",
+        "title": "mcpstat: Check MCP Discovery"
+      },
+      {
+        "command": "mcpstat.refresh",
+        "title": "mcpstat: Refresh Dashboard",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mcpstat.disconnect",
+        "title": "mcpstat: Disconnect Source",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "mcpstat.clearHistory",
+        "title": "mcpstat: Clear Dashboard History"
+      },
+      {
+        "command": "mcpstat.openWalkthrough",
+        "title": "mcpstat: Get Started",
+        "icon": "$(book)"
+      },
+      {
+        "command": "mcpstat.openIntegration",
+        "title": "mcpstat: Open Server Integration Guide"
+      }
+    ],
+    "configuration": {
+      "title": "mcpstat Dashboard",
+      "properties": {
+        "mcpstat.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "scope": "machine",
+          "restricted": true,
+          "description": "Python 3.10+ executable for optional SQLite access. On Windows, select your Python executable or use python."
+        },
+        "mcpstat.refreshSeconds": {
+          "type": "integer",
+          "default": 15,
+          "minimum": 5,
+          "maximum": 300,
+          "description": "Statistics refresh interval while the dashboard is visible."
+        },
+        "mcpstat.showSidebar": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the mcpstat connection and latest statistics in the Activity Bar. Collection still runs only while the dashboard is visible."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mcpstat",
+          "title": "mcpstat",
+          "icon": "media/icons/logo.svg"
+        }
+      ]
+    },
+    "views": {
+      "mcpstat": [
+        {
+          "id": "mcpstat.connection",
+          "name": "Connection",
+          "contextualTitle": "mcpstat",
+          "when": "config.mcpstat.showSidebar"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "mcpstat.connection",
+        "contents": "Connect to an MCP server with mcpstat installed and tracking configured, or open its statistics database.\n[Connect MCP Server](command:mcpstat.connectServer)\n[Connect Statistics Database](command:mcpstat.connectDatabase)\n[Get Started](command:mcpstat.openWalkthrough)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "mcpstat.openDashboard",
+          "when": "view == mcpstat.connection",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mcpstat.refresh",
+          "when": "view == mcpstat.connection",
+          "group": "navigation@2"
+        },
+        {
+          "command": "mcpstat.connectServer",
+          "when": "view == mcpstat.connection",
+          "group": "connection@1"
+        },
+        {
+          "command": "mcpstat.connectDatabase",
+          "when": "view == mcpstat.connection",
+          "group": "connection@2"
+        },
+        {
+          "command": "mcpstat.disconnect",
+          "when": "view == mcpstat.connection",
+          "group": "connection@3"
+        },
+        {
+          "command": "mcpstat.openWalkthrough",
+          "when": "view == mcpstat.connection",
+          "group": "help@1"
+        }
+      ]
+    },
+    "walkthroughs": [
+      {
+        "id": "mcpstat.setup",
+        "title": "Get started with mcpstat",
+        "description": "Connect your instrumented MCP server and read its usage statistics.",
+        "steps": [
+          {
+            "id": "server",
+            "title": "Add tracking to your MCP server",
+            "description": "Install mcpstat in the server environment, configure tracking and register its statistics tool.\n[Open integration guide](command:mcpstat.openIntegration)",
+            "media": {
+              "markdown": "media/walkthrough/server.md"
+            }
+          },
+          {
+            "id": "connect",
+            "title": "Connect a statistics source",
+            "description": "Select your server's statistics tool in VS Code, enter an HTTP endpoint, or open its SQLite database.\n[Connect MCP server](command:mcpstat.connectServer)\n[Open statistics database](command:mcpstat.connectDatabase)",
+            "media": {
+              "markdown": "media/walkthrough/connect.md"
+            },
+            "completionEvents": [
+              "onContext:mcpstat.hasStatistics"
+            ]
+          },
+          {
+            "id": "refresh",
+            "title": "Choose how to refresh",
+            "description": "Editor tools start with manual refresh. Open the dashboard to review tool approval before enabling auto-refresh.\n[Open dashboard](command:mcpstat.openDashboard)\n[Refresh statistics](command:mcpstat.refresh)",
+            "media": {
+              "markdown": "media/walkthrough/refresh.md"
+            },
+            "completionEvents": [
+              "onCommand:mcpstat.refresh"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "icon": "node scripts/icon.cjs",
+    "compile": "tsc -p . && tsc -p tsconfig.webview.json && node scripts/build.cjs",
+    "check": "tsc -p . --noEmit && tsc -p tsconfig.webview.json --noEmit",
+    "test": "npm run compile && node --test test/*.test.cjs",
+    "test:ui": "npm run compile && node test/webview.browser.cjs",
+    "test:mcp": "npm run compile && node test/http.integration.cjs",
+    "test:vscode": "npm run compile && node test/vscode-live.cjs",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.100.0",
+    "@vscode/vsce": "4.1.1",
+    "bootstrap-icons": "1.13.1",
+    "esbuild": "0.28.2",
+    "playwright-core": "1.65.1",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "zod": "4.6.7"
+  }
+}

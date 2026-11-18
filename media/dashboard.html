@@ -1,0 +1,88 @@
+<!doctype html>
+<!-- Copyright (c) 2026 Vadim Bakhrenkov. SPDX-License-Identifier: MIT -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-{{nonce}}'; style-src {{cspSource}}; font-src {{cspSource}}; img-src {{cspSource}}; connect-src 'none'; base-uri 'none'; form-action 'none';">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{css}}">
+  <link rel="stylesheet" href="{{icons}}">
+  <title>mcpstat Dashboard</title>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="signal" aria-hidden="true"></span><div><h1>mcpstat <span class="accent">Dashboard</span></h1><p>Usage tracking and analytics for MCP servers</p></div></div>
+    <nav aria-label="Dashboard actions">
+      <button data-action="connect" class="primary">Connect MCP server</button>
+      <button data-action="database">Connect database</button>
+      <button data-action="refresh" id="refresh" disabled>Refresh</button>
+      <button data-action="automatic" id="automatic" aria-pressed="false" aria-controls="approval-help" aria-expanded="false" disabled>Start auto-refresh</button>
+      <button id="about-toggle" aria-expanded="false" aria-controls="about">About</button>
+    </nav>
+  </header>
+  <section id="about" hidden aria-label="About mcpstat Dashboard">
+    <h2>About mcpstat Dashboard</h2>
+    <p><a class="project-link gradient-text" href="{{link_library}}" data-action="link:library"><strong>mcpstat</strong></a> is a Python library that records MCP tool, prompt and resource calls, outcomes and latency in local SQLite storage.</p>
+    <p><a class="project-link gradient-text" href="{{link_source}}" data-action="link:source"><strong>mcpstat Dashboard</strong></a> brings those statistics into VS Code. Compare handler usage, review errors and measured latency, and find registered handlers with no recorded calls. The activity chart shows changes observed during your dashboard session.</p>
+    <p>Connect through VS Code or HTTP to an MCP server with <a class="project-link gradient-text" href="{{link_library}}" data-action="link:library"><strong>mcpstat</strong></a> installed and tracking configured, or open its existing statistics database.</p>
+    <ul class="about-links" aria-label="Project resources">
+      <li><a href="{{link_docs}}" data-action="link:docs"><span class="bi bi-book" aria-hidden="true"></span><span><span class="link-label">Documentation</span><small>mcpstat.vadim.dev</small></span></a></li>
+      <li><a href="{{link_integration}}" data-action="link:integration"><span class="bi bi-plug" aria-hidden="true"></span><span><span class="link-label">Add tracking to your server</span><small>mcpstat / docs / quickstart.md</small></span></a></li>
+      <li><a href="{{link_source}}" data-action="link:source"><span class="bi bi-code-slash" aria-hidden="true"></span><span><span class="link-label">Extension source</span><small>github.com/tekkidev/mcpstat-vscode</small></span></a></li>
+      <li><a href="{{link_issues}}" data-action="link:issues"><span class="bi bi-chat-left-text" aria-hidden="true"></span><span><span class="link-label">Feedback and support</span><small>mcpstat-vscode / issues</small></span></a></li>
+      <li><a href="{{link_pypi}}" data-action="link:pypi"><span class="bi bi-box-seam" aria-hidden="true"></span><span><span class="link-label">Python package</span><small>pypi.org/project/mcpstat</small></span></a></li>
+      <li><a href="{{link_license}}" data-action="link:license"><span class="bi bi-file-earmark-text" aria-hidden="true"></span><span><span class="link-label">MIT license</span><small>mcpstat-vscode / LICENSE</small></span></a></li>
+      <li><a href="{{link_notices}}" data-action="link:notices"><span class="bi bi-info-circle" aria-hidden="true"></span><span><span class="link-label">Third-party notices</span><small>Dependencies and Bootstrap Icons, including the icon font</small></span></a></li>
+      <li><a href="{{link_security}}" data-action="link:security"><span class="bi bi-shield-lock" aria-hidden="true"></span><span><span class="link-label">Security policy</span><small>mcpstat-vscode / SECURITY.md</small></span></a></li>
+    </ul>
+  </section>
+  <div class="status-line"><span id="source">GET STARTED</span><span id="status" role="status" aria-live="polite">Choose an MCP server to begin.</span></div>
+  <div id="notice" class="notice" role="status" hidden>
+    <p id="notice-message"></p>
+    <a id="notice-integration" href="{{link_integration}}" data-action="link:integration" hidden>Add mcpstat tracking to the server</a>
+    <button id="notice-approval" data-action="approval-help" class="subtle" hidden>Review tool approval</button>
+  </div>
+  <section id="approval-help" class="notice" aria-labelledby="approval-heading" hidden>
+    <h2 id="approval-heading" tabindex="-1">Chat: Manage Tool Approval</h2>
+    <p>VS Code controls confirmations when the dashboard calls a tool outside chat. Pre-approve the selected statistics tool to avoid repeated confirmation dialogs during refresh.</p>
+    <ol>
+      <li>Open the Command Palette and run <strong>Chat: Manage Tool Approval</strong>.</li>
+      <li>Find your server's statistics tool: <strong><code id="approval-tool"></code></strong>.</li>
+      <li>Enable pre-approval (<strong>without approval</strong>), then choose <strong>Start auto-refresh</strong>.</li>
+    </ol>
+    <p>Editor versions or organization policies may still require confirmation. <a href="{{link_approvals}}" data-action="link:approvals">VS Code instructions</a></p>
+    <p id="approval-unavailable" hidden>This editor does not provide the approval-management command. You can keep manual refresh or connect directly through HTTP or a statistics database.</p>
+    <div class="links"><button id="approval-manage" data-action="approval-manage">Chat: Manage Tool Approval</button><button data-action="automatic-start" class="primary">Start auto-refresh</button><button data-action="approval-dismiss">Keep manual refresh</button></div>
+  </section>
+  <main>
+    <section id="empty" class="empty">
+      <h2>Monitor your MCP server</h2>
+      <p>View calls, errors and latency from a server instrumented with <a class="project-link gradient-text" href="{{link_library}}" data-action="link:library"><strong>mcpstat</strong></a>.</p>
+      <div class="links"><button data-action="connect" class="primary">Choose MCP server</button><button data-action="link:integration">Integration guide</button></div>
+      <p class="muted">Start your server in VS Code, then choose its <strong><code>get_tool_usage_stats</code></strong> tool, including any server prefix. You can also connect directly to an HTTP MCP endpoint.</p>
+    </section>
+    <div id="dashboard" hidden>
+      <div class="filters">
+        <label class="search-filter" title="Search"><span class="bi bi-search" aria-hidden="true"></span><span class="sr-only">Search</span><input id="search" type="search" maxlength="200" placeholder="Name, description or tag" title="Search"></label>
+        <label title="Primitive"><span class="bi bi-collection" aria-hidden="true"></span><span class="sr-only">Primitive</span><select id="primitive" title="Primitive"><option value="all">All primitives</option><option value="tool">Tools</option><option value="prompt">Prompts</option><option value="resource">Resources</option></select></label>
+        <label class="tag-filter" title="Tag"><span class="bi bi-tags" aria-hidden="true"></span><span class="sr-only">Tag</span><select id="tag" title="Tag"><option value="">All tags</option></select></label>
+        <span id="coverage" class="muted"></span>
+      </div>
+      <section class="metrics" aria-label="Cumulative statistics">
+        <article><h2>TOTAL CALLS</h2><strong id="calls">—</strong><p>Recorded by this source</p></article>
+        <article><h2>SUCCESS RATE</h2><strong id="success">—</strong><p id="outcome-coverage">Known outcomes only</p></article>
+        <article><h2>AVERAGE LATENCY</h2><strong id="latency">—</strong><p id="samples">Measured samples only</p></article>
+        <article><h2>USED / TRACKED</h2><strong id="used">—</strong><p id="unused">Including synchronized registrations</p></article>
+      </section>
+      <div class="chart-grid">
+        <section class="panel"><div class="section-title"><h2>OBSERVED ACTIVITY <span>/ calls per minute</span></h2><button data-action="clear" class="subtle">Clear history</button></div><svg id="timeline" viewBox="0 0 640 160" role="img" aria-label="Observed call and error rates"></svg><p id="history-caption" class="muted">Waiting for a second observation. History is session-only.</p><div class="legend"><span class="accent">● Calls</span><span class="amber">● Errors</span><span>Breaks indicate gaps or counter resets</span></div></section>
+        <section class="panel"><h2>MOST USED <span>/ cumulative calls</span></h2><div id="ranking"></div><p class="muted">Top five matching handlers. Zero use means no calls in recorded history.</p></section>
+      </div>
+      <section class="outcomes" aria-label="Recorded outcomes"><span>Success <b id="success-count">0</b></span><span>Errors <b id="error-count">0</b></span><span>Cancelled <b id="cancelled-count">0</b></span><span>Incomplete <b id="incomplete-count">0</b></span><span>Unknown <b id="unknown-count">0</b></span><span id="tokens">No token measurements</span></section>
+      <section class="panel table-panel"><div class="section-title"><h2>HANDLER INVENTORY</h2><span id="table-caption" class="muted"></span></div><div class="table-scroll"><table><thead><tr><th scope="col">Handler / tags</th><th scope="col">Type</th><th scope="col"><button id="sort-calls" aria-label="Sort by calls">Calls ↓</button></th><th scope="col">Errors</th><th scope="col">Avg / min / max ms</th><th scope="col">Samples</th><th scope="col">Last used</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+    </div>
+  </main>
+  <footer><span>mcpstat 0.3.0</span><button data-action="disconnect" id="disconnect" class="subtle" disabled>Disconnect source</button></footer>
+  <script type="module" nonce="{{nonce}}" src="{{script}}"></script>
+</body>
+</html>

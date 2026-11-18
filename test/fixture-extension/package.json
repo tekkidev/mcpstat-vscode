@@ -1,0 +1,15 @@
+{
+  "name": "mcpstat-test-fixture",
+  "displayName": "mcpstat Synthetic Test Fixture",
+  "publisher": "vadikus",
+  "version": "0.3.0",
+  "license": "MIT",
+  "engines": { "vscode": "^1.100.0" },
+  "main": "extension.cjs",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "mcpServerDefinitionProviders": [
+      { "id": "mcpstat.syntheticWeather", "label": "Synthetic weather" }
+    ]
+  }
+}

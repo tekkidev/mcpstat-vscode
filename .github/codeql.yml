@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+name: mcpstat extension analysis
+queries:
+  - uses: security-extended
+paths-ignore:
+  - node_modules
+  - out
+  - dist
+  - media/generated

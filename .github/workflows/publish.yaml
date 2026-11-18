@@ -1,0 +1,82 @@
+# Copyright (c) 2026 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+name: Release VS Code extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and test without publishing to Marketplace
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marketplace-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: >-
+      github.repository == 'tekkidev/mcpstat-vscode' &&
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/verify.yaml
+
+  publish:
+    needs: build
+    if: >-
+      !inputs.dry_run &&
+      github.repository == 'tekkidev/mcpstat-vscode' &&
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: marketplace
+      url: https://marketplace.visualstudio.com/items?itemName=vadikus.mcpstat-dashboard
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install pinned publishing tools
+        run: npm ci --ignore-scripts --no-fund
+      - name: Download this run's tested VSIX
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mcpstat-dashboard-vsix
+          path: ${{ runner.temp }}/marketplace
+      - name: Verify packaged identity and version
+        env:
+          MCPSTAT_VSIX: ${{ runner.temp }}/marketplace/mcpstat-dashboard.vsix
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const { execFileSync } = require('node:child_process');
+          const source = require('./package.json');
+          const packaged = JSON.parse(execFileSync('unzip',
+            ['-p', process.env.MCPSTAT_VSIX, 'extension/package.json'], { encoding: 'utf8' }));
+          assert.equal(packaged.publisher, 'vadikus');
+          assert.equal(packaged.name, 'mcpstat-dashboard');
+          assert.equal(packaged.publisher, source.publisher);
+          assert.equal(packaged.name, source.name);
+          assert.equal(packaged.version, source.version);
+          assert.match(packaged.version, /^\d+\.\d+\.\d+$/);
+          console.log(`Publishing ${packaged.publisher}.${packaged.name} ${packaged.version}`);
+          NODE
+      - name: Publish tested VSIX with Trusted Publishing
+        run: npx --no-install vsce publish --oidc --packagePath "$RUNNER_TEMP/marketplace/mcpstat-dashboard.vsix"
