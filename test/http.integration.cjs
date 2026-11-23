@@ -56,7 +56,7 @@ async function main() {
         assert.equal(history.points.at(-1).calls, 4);
         await dashboard.close();
         assert.equal((await actor.callTool({ name: 'get_weather', arguments: { city: 'Oslo' } })).isError, false);
-        console.log('PASS: installed mcpstat 0.3.0 over HTTP, bearer authentication, independent actor requests, statistics polling, chart deltas and session isolation.');
+        console.log('PASS: installed mcpstat over HTTP, bearer authentication, independent actor requests, statistics polling, chart deltas and session isolation.');
     } finally {
         await dashboard.close();
         await actorTransport.terminateSession().catch(() => undefined);

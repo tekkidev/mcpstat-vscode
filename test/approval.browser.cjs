@@ -4,6 +4,16 @@ const assert = require('node:assert/strict');
 const { setTimeout: delay } = require('node:timers/promises');
 const { chromium } = require('playwright-core');
 
+exports.approveDialog = async dialog => {
+    // The next request can show an identical dialog before a locator polls again.
+    const current = await dialog.elementHandle();
+    assert.ok(current, 'The synthetic approval dialog is present');
+    try {
+        await dialog.getByRole('button', { name: 'Yes', exact: true }).click();
+        await current.waitForElementState('hidden', { timeout: 5000 });
+    } finally { await current.dispose(); }
+};
+
 /** Click only synthetic-fixture approval dialogs in the isolated VS Code instance. */
 exports.approveFixture = async (port, done) => {
     const address = `http://127.0.0.1:${port}`;
@@ -29,7 +39,17 @@ exports.approveFixture = async (port, done) => {
                         try {
                             const calls = frame.locator('#calls');
                             if (await calls.count() && await calls.textContent() === '1') {
+                                const origin = await frame.evaluate(() => window.location.origin);
+                                assert.ok(origin && origin !== 'null', 'The real webview has a distinct, non-opaque origin');
                                 assert.equal(await frame.locator('#notice').isVisible(), false);
+                                assert.equal(await frame.locator('#automatic').textContent(), 'Start auto-refresh');
+                                // Earlier Marketplace releases predate the separate help control.
+                                if (await frame.locator('#approval-help-toggle').count()) {
+                                    await frame.locator('#approval-help-toggle').press('Enter');
+                                    await frame.locator('#approval-help').waitFor({ state: 'visible' });
+                                    await frame.locator('[data-action="approval-dismiss"]').press('Enter');
+                                    await frame.locator('#approval-help').waitFor({ state: 'hidden' });
+                                }
                                 assert.equal(await frame.locator('#automatic').textContent(), 'Start auto-refresh');
                                 observed = true;
                             }
@@ -43,9 +63,8 @@ exports.approveFixture = async (port, done) => {
                     await delay(16000);
                     assert.equal(await dialog.isVisible(), true, 'Approval remains available after 15 seconds');
                 }
-                await dialog.getByRole('button', { name: 'Yes', exact: true }).click();
+                await exports.approveDialog(dialog);
                 approved++;
-                await dialog.waitFor({ state: 'hidden', timeout: 5000 });
             }
             await delay(100);
         }

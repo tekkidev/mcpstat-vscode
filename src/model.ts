@@ -43,8 +43,9 @@ function count(value: unknown, fallback = 0): number {
     }
     return value;
 }
-function text(value: unknown, max: number): string {
-    if (typeof value !== 'string' || value.length > max) {
+function text(value: unknown, max: number, codePoints = true): string {
+    if (typeof value !== 'string' || value.length > max * (codePoints ? 2 : 1) ||
+        (codePoints && value.length > max && [...value].length > max)) {
         throw new Error('Statistics contain an invalid text field.');
     }
     return value;
@@ -70,7 +71,7 @@ export function parseSnapshot(value: unknown): Snapshot {
     } else if (!Array.isArray(input.stats) && Array.isArray(input.content)) {
         const parts = input.content.map(object).filter(part => part.type === 'text');
         if (parts.length !== 1) { throw new Error('Expected one JSON statistics result.'); }
-        input = object(JSON.parse(text(parts[0]?.text, MAX_BYTES)));
+        input = object(JSON.parse(text(parts[0]?.text, MAX_BYTES, false)));
     }
     if (!Array.isArray(input.stats) || input.stats.length > MAX_ROWS) {
         throw new Error('Expected a statistics response containing at most 1000 rows.');

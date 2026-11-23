@@ -1,9 +1,10 @@
 # Security policy
 
-Report suspected vulnerabilities privately to **hello@vadim.dev**. Include the
-extension and VS Code versions, connection type, reproduction steps and potential
-impact. Do not include credentials or production usage databases. Please do not
-report vulnerabilities through public issues.
+Report suspected vulnerabilities privately using
+[GitHub's reporting form](https://github.com/tekkidev/mcpstat-vscode/security/advisories/new).
+Include the extension and VS Code versions, connection type, reproduction steps
+and potential impact. Do not include credentials or production usage databases.
+Please do not report vulnerabilities through public issues.
 
 Security fixes apply to the current 0.3.x extension series.
 

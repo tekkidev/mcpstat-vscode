@@ -31,7 +31,7 @@ MAX_BYTES = 4 * 1024 * 1024
 MAX_TAG_JSON_BYTES = 50 * (100 * 12 + 4) + 2
 ERRORS = {
     "invalid_database": "Select an existing mcpstat SQLite database, not a JSON file.",
-    "unsupported_schema": "This dashboard requires mcpstat 0.3.0 database schema 4.",
+    "unsupported_schema": "This dashboard requires mcpstat 0.3.0 or newer with database schema 4.",
     "invalid_servers": "The database contains too many or invalid server identities.",
     "missing_server": "The selected server is no longer present in this database.",
     "too_large": "Statistics exceed the dashboard's 4 MiB limit.",
@@ -114,7 +114,7 @@ def read_snapshot(path: Path, server: str | None = None) -> dict[str, Any]:
                 raise ValueError("Invalid statistics tags")
             item["tags"] = json.loads(item["tags"])
             if not isinstance(item["tags"], list) or len(item["tags"]) > 50 or any(
-                not isinstance(tag, str) or len(tag.encode("utf-16-le", "surrogatepass")) > 200
+                not isinstance(tag, str) or len(tag) > 100
                 for tag in item["tags"]
             ):
                 raise ValueError("Invalid statistics tags")

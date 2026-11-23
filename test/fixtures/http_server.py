@@ -34,7 +34,7 @@ def main() -> None:
     transport.add_argument("--stdio", action="store_true")
     parser.add_argument("--database", required=True)
     arguments = parser.parse_args()
-    assert version("mcpstat") == "0.3.0"
+    assert version("mcpstat").startswith("0.3.")
     stat = MCPStat("weather", db_path=arguments.database, log_enabled=False)
 
     @asynccontextmanager

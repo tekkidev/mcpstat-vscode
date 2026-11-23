@@ -8,7 +8,7 @@ const readerErrors: Record<string, string> = {
     unsupported_python: 'Python 3.10+ is required. Set mcpstat: Python Path to a supported interpreter.',
     missing_sqlite: 'This Python installation lacks SQLite support. Set mcpstat: Python Path to an interpreter with sqlite3.',
     invalid_database: 'Select an existing mcpstat SQLite database, or use Connect MCP server to read its statistics tool.',
-    unsupported_schema: 'The selected database is not mcpstat schema 4. The dashboard requires statistics written by mcpstat 0.3.0 and does not migrate databases.',
+    unsupported_schema: 'The selected database is not mcpstat schema 4. The dashboard requires statistics written by mcpstat 0.3.0 or newer and does not migrate databases.',
     invalid_servers: 'The database contains too many or invalid server identities.',
     missing_server: 'The selected server is no longer present in this database. Reconnect and choose a server.',
     too_large: 'Statistics exceed the dashboard limit of 4 MiB.',

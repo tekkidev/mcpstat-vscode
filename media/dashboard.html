@@ -17,6 +17,7 @@
       <button data-action="database">Connect database</button>
       <button data-action="refresh" id="refresh" disabled>Refresh</button>
       <button data-action="automatic" id="automatic" aria-pressed="false" aria-controls="approval-help" aria-expanded="false" disabled>Start auto-refresh</button>
+      <button data-action="approval-help" id="approval-help-toggle" aria-controls="approval-help" aria-expanded="false" hidden>Tool approvals</button>
       <button id="about-toggle" aria-expanded="false" aria-controls="about">About</button>
     </nav>
   </header>
@@ -50,7 +51,7 @@
       <li>Find your server's statistics tool: <strong><code id="approval-tool"></code></strong>.</li>
       <li>Enable pre-approval (<strong>without approval</strong>), then choose <strong>Start auto-refresh</strong>.</li>
     </ol>
-    <p>Editor versions or organization policies may still require confirmation. <a href="{{link_approvals}}" data-action="link:approvals">VS Code instructions</a></p>
+    <p>The dashboard remembers that you reviewed these instructions for this connection. Use <strong>Tool approvals</strong> to reopen them. VS Code still controls permissions and may require confirmation. <a href="{{link_approvals}}" data-action="link:approvals">VS Code instructions</a></p>
     <p id="approval-unavailable" hidden>This editor does not provide the approval-management command. You can keep manual refresh or connect directly through HTTP or a statistics database.</p>
     <div class="links"><button id="approval-manage" data-action="approval-manage">Chat: Manage Tool Approval</button><button data-action="automatic-start" class="primary">Start auto-refresh</button><button data-action="approval-dismiss">Keep manual refresh</button></div>
   </section>
@@ -82,7 +83,7 @@
       <section class="panel table-panel"><div class="section-title"><h2>HANDLER INVENTORY</h2><span id="table-caption" class="muted"></span></div><div class="table-scroll"><table><thead><tr><th scope="col">Handler / tags</th><th scope="col">Type</th><th scope="col"><button id="sort-calls" aria-label="Sort by calls">Calls ↓</button></th><th scope="col">Errors</th><th scope="col">Avg / min / max ms</th><th scope="col">Samples</th><th scope="col">Last used</th></tr></thead><tbody id="rows"></tbody></table></div></section>
     </div>
   </main>
-  <footer><span>mcpstat 0.3.0</span><button data-action="disconnect" id="disconnect" class="subtle" disabled>Disconnect source</button></footer>
+  <footer><span>mcpstat 0.3.1</span><button data-action="disconnect" id="disconnect" class="subtle" disabled>Disconnect source</button></footer>
   <script type="module" nonce="{{nonce}}" src="{{script}}"></script>
 </body>
 </html>

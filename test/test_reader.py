@@ -108,7 +108,7 @@ class ReadOnlyTests(unittest.TestCase):
             self.assertEqual(self.connection.execute("PRAGMA user_version").fetchone()[0], version)
 
     def test_unicode_tags_are_read_intact_and_invalid_tags_are_bounded(self) -> None:
-        for character, repetitions in (("界", 97), ("\U0001f30d", 48)):
+        for character, repetitions in (("界", 98), ("\U0001f30d", 98)):
             tags = [character * repetitions + f"{index:02d}" for index in range(50)]
             encoded = json.dumps(tags)
             self.assertGreater(len(encoded), 16384)
@@ -116,7 +116,7 @@ class ReadOnlyTests(unittest.TestCase):
             self.connection.commit()
             self.assertEqual(self.read("weather")["stats"][1]["tags"], tags)
         for value in ("[", json.dumps(["tag"] * 51), json.dumps([123]),
-                      json.dumps(["\U0001f30d" * 51])):
+                      json.dumps(["\U0001f30d" * 101])):
             self.connection.execute("UPDATE mcpstat_metadata SET tags=?", (value,))
             self.connection.commit()
             with self.assertRaises(ValueError):

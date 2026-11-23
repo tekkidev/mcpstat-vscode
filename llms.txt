@@ -3,7 +3,7 @@
 > A VS Code extension for MCP server observability. View tool, prompt and resource
 > usage, errors and measured latency recorded by the Python mcpstat library.
 
-Requires VS Code 1.100+ and a server instrumented with mcpstat 0.3.0. The extension
+Requires VS Code 1.100+ and a server instrumented with mcpstat 0.3.0+. The extension
 does not automatically instrument arbitrary MCP servers. Connect through VS Code's
 registered statistics tool, Streamable HTTP, or an existing schema-4 SQLite database.
 Python 3.10+ is needed only for SQLite access. The extension ID is

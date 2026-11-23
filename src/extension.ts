@@ -24,6 +24,8 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
     private panel?: vscode.WebviewPanel;
     private source?: Source;
     private snapshot?: Snapshot;
+    private dataRevision = 0;
+    private sentRevision = -1;
     private readonly history = new History();
     private timer?: ReturnType<typeof setTimeout>;
     private readonly requests = new Set<AbortController>();
@@ -83,6 +85,7 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
                 localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')],
             });
         this.panel = panel;
+        this.sentRevision = -1;
         const nonce = randomBytes(24).toString('base64');
         const media = vscode.Uri.joinPath(this.context.extensionUri, 'media');
         try {
@@ -97,7 +100,8 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
                 '{{script}}': panel.webview.asWebviewUri(vscode.Uri.joinPath(media, 'generated', 'webview.js')).toString(),
             };
             panel.webview.onDidReceiveMessage((message: unknown) => {
-                void this.message(message).catch(() => {
+                if (this.panel !== panel) { return; }
+                return this.message(message).catch(() => {
                     this.error = 'The action could not be completed. Check the selected source and try again.';
                     this.send();
                 });
@@ -159,7 +163,10 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
             await showDiscoveryInfo(); return;
         }
         if (choice.sourceKind === 'http') { await this.connectHttp(selection); return; }
-        const previous = this.replace({ kind: 'editor', tool: choice.tool });
+        const acknowledged = this.source?.kind === 'editor' && this.source.tool === choice.tool &&
+            this.source.approvalHelpAcknowledged;
+        const previous = this.replace({ kind: 'editor', tool: choice.tool,
+            ...(acknowledged ? { approvalHelpAcknowledged: true } : {}) });
         await this.remember(previous);
         await this.show();
         await this.refresh();
@@ -230,7 +237,7 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
         if (!this.trusted()) { return; }
         const selection = ++this.selection;
         const picked = await vscode.window.showOpenDialog({ canSelectMany: false,
-            canSelectFolders: false, title: 'Select an existing mcpstat 0.3.0 statistics database',
+            canSelectFolders: false, title: 'Select an existing mcpstat statistics database (schema 4)',
             filters: { 'SQLite databases': ['sqlite', 'sqlite3', 'db'], 'All files': ['*'] } });
         const uri = picked?.[0];
         if (!uri || !this.trusted() || selection !== this.selection) { return; }
@@ -269,6 +276,7 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
         this.automatic = !!source && source.kind !== 'editor';
         this.pollingPaused = false;
         this.snapshot = undefined;
+        this.dataRevision++;
         this.lastRead = undefined;
         this.error = undefined;
         this.connectionIssue = undefined;
@@ -313,6 +321,7 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
             this.incompatible = false;
             this.pollingPaused = false;
             this.history.observe(snapshot, this.lastRead, this.interval());
+            this.dataRevision++;
             void vscode.commands.executeCommand('setContext', 'mcpstat.hasStatistics', true);
         } catch (error) {
             if (generation === this.generation && !this.disposed) {
@@ -339,10 +348,12 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
         this.selection++; this.replace(); this.send();
         await this.remember(previous);
     }
-    clearHistory(): void { this.history.clear(); this.send(); }
+    clearHistory(): void { this.history.clear(); this.dataRevision++; this.send(); }
     async toggleAutomatic(): Promise<void> {
         if (!this.source || !this.trusted() || this.disposed) { return; }
-        if (!this.automatic && this.source.kind === 'editor') { await this.showApprovalHelp(); return; }
+        if (!this.automatic && this.source.kind === 'editor' && !this.source.approvalHelpAcknowledged) {
+            await this.showApprovalHelp(); return;
+        }
         this.automatic = !this.automatic;
         this.approvalHelp = false;
         if (this.automatic) { this.pollingPaused = false; }
@@ -361,8 +372,12 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
         this.approvalManagerAvailable = commands.includes(APPROVAL_COMMAND);
         this.send();
     }
-    private startAutomatic(): void {
+    private async startAutomatic(): Promise<void> {
         if (!this.approvalHelp || this.source?.kind !== 'editor' || !this.trusted() || this.disposed) { return; }
+        const generation = this.generation;
+        this.source = { ...this.source, approvalHelpAcknowledged: true };
+        await this.context.workspaceState.update(PROFILE_KEY, this.source);
+        if (this.disposed || generation !== this.generation || !this.approvalHelp) { return; }
         this.approvalHelp = false;
         this.automatic = true;
         this.pollingPaused = false;
@@ -388,12 +403,15 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
         const message = error instanceof Error ? error.message : 'Cannot access this statistics source.';
         void vscode.window.showErrorMessage(message);
     }
-    private send(): void {
+    private send(full = false): void {
         if (this.disposed) { return; }
         this.treeChanges.fire();
         if (!this.panel) { return; }
-        void this.panel.webview.postMessage({
-            type: 'state', snapshot: this.snapshot, points: this.history.points,
+        const panel = this.panel;
+        const revision = this.dataRevision;
+        void panel.webview.postMessage({
+            type: 'state', revision,
+            ...(full || this.sentRevision !== revision ? { snapshot: this.snapshot, points: this.history.points } : {}),
             source: this.source ? { kind: this.source.kind,
                 name: this.source.kind === 'database' ? basename(this.source.path) :
                     this.source.kind === 'http' ? new URL(this.source.url).host : this.source.tool,
@@ -403,14 +421,16 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
             approvalHelp: this.approvalHelp, approvalManagerAvailable: this.approvalManagerAvailable,
             automatic: this.automatic, pollingPaused: this.pollingPaused,
             interval: this.interval(), remote: vscode.env.remoteName !== undefined,
-        });
+        }).then(delivered => {
+            if (delivered && this.panel === panel && this.dataRevision === revision) { this.sentRevision = revision; }
+        }, () => undefined);
     }
     private async message(value: unknown): Promise<void> {
         if (!value || typeof value !== 'object') { return; }
         const { action } = value as { action?: unknown };
         switch (action) {
             case 'ready':
-                this.send();
+                this.send(true);
                 if (this.source && !this.pollingPaused && (!this.lastRead || (this.automatic && Date.now() - this.lastRead >= this.interval()))) { await this.refresh(); }
                 else { this.schedule(); }
                 break;
@@ -424,8 +444,12 @@ class Dashboard implements vscode.Disposable, vscode.TreeDataProvider<vscode.Tre
                     await vscode.commands.executeCommand(APPROVAL_COMMAND);
                 }
                 break;
-            case 'automatic-start': this.startAutomatic(); break;
-            case 'approval-dismiss': this.approvalHelp = false; this.send(); break;
+            case 'automatic-start': await this.startAutomatic(); break;
+            case 'approval-dismiss':
+                if (this.approvalHelp && this.source?.kind === 'editor') {
+                    this.approvalHelp = false; this.automatic = false; this.stopTimer(); this.send();
+                }
+                break;
             case 'disconnect': await this.disconnect(); break;
             case 'clear': this.clearHistory(); break;
             default:

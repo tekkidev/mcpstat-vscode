@@ -446,7 +446,7 @@ CC-BY-4.0. See https://creativecommons.org/licenses/by/4.0/legalcode for
 the full license text.
 
 
-## bootstrap-icons 1.13.1
+## bootstrap-icons 1.13.2
 
 License: MIT
 

@@ -55,7 +55,7 @@ export function boundedResponse(response: Response): Response {
 
 /** One owned HTTP session. Only the selected statistics tool is invoked. */
 export class HttpStatistics {
-    private readonly client = new Client({ name: 'mcpstat-dashboard', version: '0.3.0' },
+    private readonly client = new Client({ name: 'mcpstat-dashboard', version: '0.3.1' },
         { listMaxPages: 10, versionNegotiation: { mode: 'auto' } });
     private readonly transport: StreamableHTTPClientTransport;
     private readonly lifetime = new AbortController();

@@ -5,7 +5,8 @@ import { isAbsolute } from 'node:path';
 import { endpoint, isStatisticsTool } from './connection';
 
 export type Source = { kind: 'database'; path: string; server: string } |
-    { kind: 'editor'; tool: string } | { kind: 'http'; url: string; tool: string; credentialId?: string };
+    { kind: 'editor'; tool: string; approvalHelpAcknowledged?: boolean } |
+    { kind: 'http'; url: string; tool: string; credentialId?: string };
 export const PROFILE_KEY = 'mcpstat.connection.v1';
 
 /** Credentials belong in SecretStorage, never in a connection profile. */
@@ -18,7 +19,10 @@ export function parseProfile(value: unknown): Source | undefined {
         return { kind: 'database', path: profile.path, server: profile.server };
     }
     if (typeof profile.tool !== 'string' || !isStatisticsTool(profile.tool)) { return undefined; }
-    if (profile.kind === 'editor') { return { kind: 'editor', tool: profile.tool }; }
+    if (profile.kind === 'editor') {
+        return { kind: 'editor', tool: profile.tool,
+            ...(profile.approvalHelpAcknowledged === true ? { approvalHelpAcknowledged: true } : {}) };
+    }
     if (profile.kind === 'http' && typeof profile.url === 'string') {
         if (profile.credentialId !== undefined && (typeof profile.credentialId !== 'string' ||
             !/^[a-f0-9]{64}$/.test(profile.credentialId))) { return undefined; }

@@ -10,7 +10,7 @@ npm test
 python -m unittest discover -s test -p 'test_*.py' -v
 npm run test:ui
 npm run package
-code --install-extension ./mcpstat-dashboard-0.3.0.vsix --force
+code --install-extension ./mcpstat-dashboard-0.3.1.vsix --force
 ```
 
 The browser check uses an installed Chrome/Chromium executable, selected with
@@ -48,7 +48,7 @@ when running `npm run test:ui` to capture dark and light previews. Review the im
 before updating `media/screenshots/dashboard.png`. Keep the main screenshot focused
 on the populated dashboard, with calls, errors, latency, charts and handler inventory.
 
-To verify a live server, install `mcpstat[server]==0.3.0` in a separate environment
+To verify a live server, install `mcpstat[server]>=0.3.0,<0.4` in a separate environment
 and run `test/verify_mcp.py` with that environment's Python and a fresh output directory.
 Run outside the source checkout so imports resolve to the installed distribution.
 The check uses the synthetic weather fixture in `test/fixtures/http_server.py`, compares
@@ -75,8 +75,15 @@ temporary loopback debugging port.
 
 ## Security checks
 
-Run `npm audit --omit=dev` to check runtime dependencies. CI runs the build and
+Run `npm audit --include=dev` to check runtime and build dependencies. CI runs the build and
 tests; CodeQL scans TypeScript, JavaScript, Python and GitHub Actions.
+
+For dependency updates, check `npm outdated`, review upstream release notes and use
+`npm install --save-exact --ignore-scripts` with `--save-dev` for build tools. Commit
+`package.json` and `package-lock.json` together, then rerun the checks above.
+Keep the VS Code types aligned with the minimum supported editor version and Node
+types aligned with the supported Node version. Rebuild the package to regenerate
+third-party notices.
 
 Keep snapshot parsing and calculations in `src/model.ts`, shared by the extension
 and browser builds. Keep database access read-only and limited to schema 4. Preserve

@@ -88,7 +88,7 @@ function harness(storage = new Map(), secrets = new Map(), fakeClock = false) {
         clearTimeout: fakeClock ? id => timers.delete(id) : clearTimeout }, { filename: extensionPath });
     exports.activate(context);
     return { commands, posts, dialogs, links, errors, panels, source, editor, vscode, storage, secrets, picks, inputs, httpCalls, timers,
-        executed, availableCommands, trees, contexts, setHttpTools: tools => { httpTools = tools; },
+        executed, availableCommands, trees, contexts, context, setHttpTools: tools => { httpTools = tools; },
         close: () => { for (const subscription of context.subscriptions) { subscription.dispose?.(); } } };
 }
 
@@ -263,12 +263,12 @@ test('failed polling pauses until a manual retry succeeds, preserving existing v
         await app.panels[0].message({ action: 'automatic-start' });
         assert.equal(app.posts.at(-1).automatic, true);
         assert.equal([...app.timers.values()][0].ms, 15000);
-        const snapshot = app.posts.at(-1).snapshot;
+        const snapshot = app.posts.findLast(post => post.snapshot)?.snapshot;
         app.editor.readEditor = async () => { throw new Error('Approval cancelled.'); };
         await app.commands.get('mcpstat.refresh')();
         assert.equal(app.timers.size, 0, 'A failed request must not schedule another confirmation');
         assert.equal(app.posts.at(-1).pollingPaused, true);
-        assert.equal(app.posts.at(-1).snapshot, snapshot);
+        assert.equal(app.posts.at(-1).snapshot, undefined, 'Status updates retain the webview snapshot without resending it');
         assert.match(app.posts.at(-1).error, /Previous values may be stale/);
         app.panels[0].viewChanged();
         await app.panels[0].message({ action: 'ready' });
@@ -335,6 +335,89 @@ test('editor auto-refresh waits for an explicit choice and offers only the avail
     } finally { app.close(); }
 });
 
+test('editor reminder acknowledgement survives reload and help remains available while polling', async () => {
+    const storage = new Map();
+    const app = harness(storage, new Map(), true);
+    let restored;
+    try {
+        await app.commands.get('mcpstat.connectServer')();
+        const panel = app.panels[0];
+        await panel.message({ action: 'automatic' });
+        await panel.message({ action: 'approval-dismiss' });
+        assert.equal(storage.get('mcpstat.connection.v1').approvalHelpAcknowledged, undefined);
+        await panel.message({ action: 'automatic' });
+        await panel.message({ action: 'automatic-start' });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(storage.get('mcpstat.connection.v1').approvalHelpAcknowledged, true);
+        await panel.message({ action: 'automatic' });
+        await panel.message({ action: 'automatic' });
+        assert.equal(app.posts.at(-1).automatic, true);
+        assert.equal(app.posts.at(-1).approvalHelp, false, 'Acknowledged tools start without repeating the guide');
+        await panel.message({ action: 'approval-help' });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(app.posts.at(-1).approvalHelp, true, 'Instructions can be reopened while automatic refresh is active');
+        await panel.message({ action: 'approval-dismiss' });
+        assert.equal(app.posts.at(-1).automatic, false, 'Keep manual refresh pauses an active timer');
+        assert.equal(app.timers.size, 0);
+        await app.commands.get('mcpstat.connectServer')();
+        assert.equal(storage.get('mcpstat.connection.v1').approvalHelpAcknowledged, true, 'Reconnecting the same tool preserves acknowledgement');
+        app.close();
+        restored = harness(storage, new Map(), true);
+        await restored.commands.get('mcpstat.openDashboard')();
+        await restored.panels[0].message({ action: 'ready' });
+        assert.equal(restored.posts.at(-1).automatic, false, 'Reload still starts editor connections manually');
+        await restored.panels[0].message({ action: 'automatic' });
+        assert.equal(restored.posts.at(-1).automatic, true);
+        assert.equal(restored.posts.at(-1).approvalHelp, false);
+        assert.equal(restored.timers.size, 1);
+    } finally { restored?.close(); app.close(); }
+});
+
+test('reminder acknowledgement belongs to the selected tool and workspace', async () => {
+    const app = harness(new Map(), new Map(), true);
+    const other = harness(new Map(), new Map(), true);
+    try {
+        await app.commands.get('mcpstat.connectServer')();
+        await app.panels[0].message({ action: 'automatic' });
+        await app.panels[0].message({ action: 'automatic-start' });
+        await new Promise(resolve => setImmediate(resolve));
+        await other.commands.get('mcpstat.connectServer')();
+        await other.panels[0].message({ action: 'automatic' });
+        assert.equal(other.posts.at(-1).approvalHelp, true, 'Another workspace has its own reminder');
+        app.editor.statisticsTools = () => [{ name: 'mcp_other_get_tool_usage_stats', description: 'Statistics' }];
+        await app.commands.get('mcpstat.connectServer')();
+        await app.panels[0].message({ action: 'automatic' });
+        assert.equal(app.posts.at(-1).approvalHelp, true, 'A different tool needs its own acknowledgement');
+        assert.equal(app.posts.at(-1).automatic, false);
+        await app.commands.get('mcpstat.disconnect')();
+        assert.equal(app.storage.get('mcpstat.connection.v1'), undefined);
+    } finally { app.close(); other.close(); }
+});
+
+test('a late acknowledgement save cannot restart collection after disconnect', async () => {
+    const app = harness(new Map(), new Map(), true);
+    try {
+        await app.commands.get('mcpstat.connectServer')();
+        await app.panels[0].message({ action: 'automatic' });
+        const originalUpdate = app.context.workspaceState.update;
+        let complete;
+        app.context.workspaceState.update = async (key, value) => {
+            await originalUpdate(key, value);
+            if (value?.approvalHelpAcknowledged) { await new Promise(resolve => { complete = resolve; }); }
+        };
+        const pending = app.panels[0].message({ action: 'automatic-start' });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(typeof complete, 'function');
+        await app.commands.get('mcpstat.disconnect')();
+        complete();
+        await pending;
+        assert.equal(app.posts.at(-1).automatic, false);
+        assert.equal(app.posts.at(-1).source, undefined);
+        assert.equal(app.timers.size, 0);
+        assert.equal(app.storage.get('mcpstat.connection.v1'), undefined);
+    } finally { app.close(); }
+});
+
 test('HTTP sources without a statistics tool show an inline installation notice and preserve an existing connection', async () => {
     const app = harness();
     try {
@@ -359,7 +442,7 @@ test('unsupported editor statistics show setup guidance and clear it after a com
         app.editor.readEditor = async () => { throw new (require('../out/model').IncompatibleSourceError)(); };
         await app.commands.get('mcpstat.refresh')();
         assert.equal(app.posts.at(-1).needsMcpstat, true);
-        assert.equal(app.posts.at(-1).snapshot, snapshot);
+        assert.equal(app.posts.at(-1).snapshot, undefined, 'An error updates status without replacing the previous data');
         app.editor.readEditor = async () => snapshot;
         await app.commands.get('mcpstat.refresh')();
         assert.equal(app.posts.at(-1).needsMcpstat, false);
@@ -470,4 +553,81 @@ test('automatic database collection resumes on ready after an in-flight panel cl
         assert.equal(app.posts.at(-1).error, undefined);
         assert.equal(app.timers.size, 1, 'Automatic refresh is scheduled again');
     } finally { app.close(); }
+});
+
+test('status messages omit data and ready restores a complete connection-scoped snapshot', async () => {
+    const app = harness();
+    try {
+        app.vscode.env.remoteName = 'ssh-remote';
+        await app.commands.get('mcpstat.connectServer')();
+        const full = app.posts.at(-1);
+        assert.ok(full.snapshot);
+        assert.ok(Array.isArray(full.points));
+        assert.equal(full.remote, true);
+        await app.panels[0].message({ action: 'approval-help' });
+        const status = app.posts.at(-1);
+        assert.equal(status.revision, full.revision);
+        assert.equal(Object.hasOwn(status, 'snapshot'), false);
+        assert.equal(Object.hasOwn(status, 'points'), false);
+        await app.panels[0].message({ action: 'ready' });
+        assert.equal(app.posts.at(-1).snapshot, full.snapshot);
+        assert.equal(app.posts.at(-1).revision, full.revision);
+        await app.commands.get('mcpstat.clearHistory')();
+        assert.ok(app.posts.at(-1).revision > full.revision);
+        assert.equal(app.posts.at(-1).points.length, 0);
+        assert.equal(app.posts.at(-1).snapshot, full.snapshot);
+        const revision = app.posts.at(-1).revision;
+        await app.commands.get('mcpstat.disconnect')();
+        assert.ok(app.posts.at(-1).revision > revision);
+        assert.equal(app.posts.at(-1).snapshot, undefined);
+        assert.equal(app.posts.at(-1).points.length, 0);
+        assert.equal(app.posts.at(-1).source, undefined);
+        assert.ok(!JSON.stringify([...app.storage]).includes('call_count'));
+    } finally { app.close(); }
+});
+
+test('a failed delivery is retried in full and a disposed panel cannot control its replacement', async () => {
+    const app = harness();
+    try {
+        await app.commands.get('mcpstat.connectServer')();
+        const oldPanel = app.panels[0];
+        oldPanel.dispose();
+        await app.commands.get('mcpstat.openDashboard')();
+        const panel = app.panels[1];
+        panel.webview.postMessage = value => { app.posts.push(value); return Promise.resolve(false); };
+        await panel.message({ action: 'ready' });
+        await panel.message({ action: 'approval-help' });
+        assert.ok(app.posts.at(-1).snapshot, 'Undelivered data must not be treated as cached');
+        panel.webview.postMessage = value => { app.posts.push(value); return Promise.resolve(true); };
+        await panel.message({ action: 'ready' });
+        assert.ok(app.posts.at(-1).snapshot, 'A recreated document always receives the full snapshot');
+        const count = app.posts.length;
+        await oldPanel.message({ action: 'disconnect' });
+        assert.equal(app.posts.length, count, 'A disposed webview cannot change the active connection');
+        await panel.message({ action: 'approval-help' });
+        assert.equal(Object.hasOwn(app.posts.at(-1), 'snapshot'), false);
+        assert.ok(app.posts.at(-1).source);
+    } finally { app.close(); }
+});
+
+test('statistics caches remain separate for local and remote workspaces using the same tool', async () => {
+    const local = harness(), remote = harness();
+    try {
+        remote.vscode.env.remoteName = 'ssh-remote';
+        remote.editor.readEditor = async () => require('../out/model').parseSnapshot({ stats: [{
+            name: 'synthetic_remote_handler', type: 'tool', call_count: 7,
+        }] });
+        await Promise.all([local.commands.get('mcpstat.connectServer')(), remote.commands.get('mcpstat.connectServer')()]);
+        const localData = local.posts.at(-1), remoteData = remote.posts.at(-1);
+        assert.equal(localData.source.name, remoteData.source.name);
+        assert.equal(localData.remote, false);
+        assert.equal(remoteData.remote, true);
+        assert.equal(localData.snapshot.stats[0].call_count, 1);
+        assert.equal(remoteData.snapshot.stats[0].call_count, 7);
+        await local.commands.get('mcpstat.disconnect')();
+        await remote.panels[0].message({ action: 'ready' });
+        assert.equal(remote.posts.at(-1).snapshot, remoteData.snapshot);
+        assert.equal(local.posts.at(-1).snapshot, undefined);
+        for (const app of [local, remote]) assert.ok(!JSON.stringify([...app.storage]).includes('call_count'));
+    } finally { local.close(); remote.close(); }
 });

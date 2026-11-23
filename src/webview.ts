@@ -8,16 +8,20 @@ declare function acquireVsCodeApi(): {
 };
 const vscode = acquireVsCodeApi();
 interface State {
-    type: 'state'; snapshot?: Snapshot; points: Point[];
+    type: 'state'; revision: number; snapshot?: Snapshot; points: Point[];
     source?: { kind: 'database' | 'editor' | 'http'; name: string; server?: string };
     lastRead?: number; error?: string; busy: boolean; interval: number; remote: boolean;
     automatic?: boolean; pollingPaused?: boolean;
     connectionIssue?: string; needsMcpstat?: boolean;
     approvalHelp?: boolean; approvalManagerAvailable?: boolean;
 }
-let state: State = { type: 'state', points: [], busy: false, interval: 15000, remote: false };
+type StateUpdate = Omit<State, 'snapshot' | 'points'> & Partial<Pick<State, 'snapshot' | 'points'>>;
+let state: State = { type: 'state', revision: -1, points: [], busy: false, interval: 15000, remote: false };
 let descending = true;
 let selectedTag = '';
+let indexedRows: { row: Row; search: string }[] = [];
+let filteredRows: Row[] = [];
+let availableTags: string[] = [];
 function element<T extends HTMLElement = HTMLElement>(id: string): T {
     const value = document.getElementById(id);
     if (!value) { throw new Error('Missing dashboard element.'); }
@@ -38,12 +42,14 @@ function restorePreferences(): void {
     if (typeof preferences.primitive === 'string' && ['all', 'tool', 'prompt', 'resource'].includes(preferences.primitive)) {
         element<HTMLSelectElement>('primitive').value = preferences.primitive;
     }
-    if (typeof preferences.tag === 'string' && preferences.tag.length <= 100) { selectedTag = preferences.tag; }
+    if (typeof preferences.tag === 'string' && preferences.tag.length <= 200 && [...preferences.tag].length <= 100) {
+        selectedTag = preferences.tag;
+    }
     if (typeof preferences.descending === 'boolean') { descending = preferences.descending; }
     set('sort-calls', `Calls ${descending ? '↓' : '↑'}`);
 }
 const number = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 1 });
-const ms = (value: number | null) => value === null ? 'n/a' : number(value);
+const ms = (value: number | null) => value === null ? '—' : number(value);
 function svg<K extends keyof SVGElementTagNameMap>(tag: K, attributes: Record<string, string>): SVGElementTagNameMap[K] {
     const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
     for (const [name, value] of Object.entries(attributes)) { node.setAttribute(name, value); }
@@ -120,7 +126,11 @@ function renderTable(rows: Row[]): void {
             `${ms(avg)} / ${ms(row.min_duration_ms)} / ${ms(row.max_duration_ms)}`,
             `${number(row.duration_sample_count)} / ${number(row.call_count)}`,
             row.last_accessed ? new Date(row.last_accessed).toLocaleString() : 'Never recorded'];
-        for (const value of cells) { const td = document.createElement('td'); td.textContent = value; tr.append(td); }
+        for (const value of cells) {
+            const td = document.createElement('td'); td.textContent = value;
+            if (value.includes('—')) { td.title = '— means not available.'; }
+            tr.append(td);
+        }
         body.append(tr);
     }
     set('table-caption', `${Math.min(200, rows.length)} of ${rows.length} matching handlers${rows.length > 200 ? ' · filter to narrow results' : ''}`);
@@ -130,7 +140,7 @@ function renderTable(rows: Row[]): void {
     }
 }
 
-function render(): void {
+function render(dataChanged: boolean): void {
     const snapshot = state.snapshot;
     element('empty').hidden = !!snapshot;
     element('dashboard').hidden = !snapshot;
@@ -152,31 +162,46 @@ function render(): void {
     element('notice-integration').hidden = !state.needsMcpstat;
     element('notice-approval').hidden = state.source?.kind !== 'editor' || !state.error;
     const approvalHelp = element('approval-help');
+    const approvalToggle = element('approval-help-toggle');
+    approvalToggle.hidden = state.source?.kind !== 'editor';
     const wasShowingApproval = !approvalHelp.hidden;
     approvalHelp.hidden = !state.approvalHelp || state.source?.kind !== 'editor';
     automatic.setAttribute('aria-expanded', String(!approvalHelp.hidden));
+    approvalToggle.setAttribute('aria-expanded', String(!approvalHelp.hidden));
     element('approval-manage').hidden = !state.approvalManagerAvailable;
     element('approval-unavailable').hidden = state.approvalManagerAvailable !== false;
     set('approval-tool', state.source?.kind === 'editor' ? state.source.name : '');
     if (!approvalHelp.hidden && !wasShowingApproval) { element('approval-heading').focus(); }
     else if (approvalHelp.hidden && wasShowingApproval && !automatic.disabled) { automatic.focus(); }
-    if (!snapshot) { return; }
+    if (!dataChanged) { return; }
+    indexedRows = (snapshot?.stats ?? []).map(row => ({ row,
+        search: `${row.name} ${row.short_description} ${row.tags.join(' ')}`.toLocaleLowerCase() }));
     const tagSelect = element<HTMLSelectElement>('tag');
-    const tags = [...new Set(snapshot.stats.flatMap(row => row.tags))].sort();
-    tagSelect.replaceChildren(new Option('All tags', ''), ...tags.map(tag => new Option(tag, tag)));
+    const tags = [...new Set(indexedRows.flatMap(({ row }) => row.tags))].sort();
+    if (tags.length !== availableTags.length || tags.some((tag, index) => tag !== availableTags[index])) {
+        tagSelect.replaceChildren(new Option('All tags', ''), ...tags.map(tag => new Option(tag, tag)));
+        availableTags = tags;
+    }
     if (tags.includes(selectedTag)) { tagSelect.value = selectedTag; }
-    else if (selectedTag) { selectedTag = ''; savePreferences(); }
+    else if (selectedTag && snapshot) { selectedTag = ''; savePreferences(); }
+    renderTimeline();
+    renderFiltered();
+}
+
+function renderFiltered(): void {
+    const tag = element<HTMLSelectElement>('tag').value;
     const query = element<HTMLInputElement>('search').value.toLocaleLowerCase();
     const primitive = element<HTMLSelectElement>('primitive').value;
-    const rows = snapshot.stats.filter(row => (primitive === 'all' || row.type === primitive) &&
-        (!tagSelect.value || row.tags.includes(tagSelect.value)) &&
-        `${row.name} ${row.short_description} ${row.tags.join(' ')}`.toLocaleLowerCase().includes(query));
+    const rows = filteredRows = indexedRows.filter(({ row, search }) => (primitive === 'all' || row.type === primitive) &&
+        (!tag || row.tags.includes(tag)) && search.includes(query)).map(({ row }) => row);
     const summary = summarize(rows);
-    set('coverage', `${rows.length} / ${snapshot.stats.length} returned handlers`);
+    set('coverage', `${rows.length} / ${indexedRows.length} returned handlers`);
     set('calls', number(summary.calls));
-    set('success', summary.successRate === null ? 'n/a' : `${number(summary.successRate)}%`);
+    set('success', summary.successRate === null ? '—' : `${number(summary.successRate)}%`);
+    element('success').title = summary.successRate === null ? 'Success rate is not available without recorded outcomes.' : '';
     set('outcome-coverage', `${number(summary.unknown)} calls with unknown outcome`);
-    set('latency', summary.avgLatency === null ? 'n/a' : `${number(summary.avgLatency)} ms`);
+    set('latency', summary.avgLatency === null ? '—' : `${number(summary.avgLatency)} ms`);
+    element('latency').title = summary.avgLatency === null ? 'Average latency is not available.' : '';
     set('samples', `${number(summary.samples)} measured samples / ${number(summary.calls)} calls`);
     set('used', `${summary.used} / ${summary.registered}`);
     set('unused', `${summary.registered - summary.used} handlers with no recorded calls`);
@@ -187,7 +212,7 @@ function render(): void {
     if (summary.inputTokens || summary.outputTokens) { tokens.push(`Reported tokens: ${number(summary.inputTokens)} in / ${number(summary.outputTokens)} out`); }
     if (summary.estimatedTokens) { tokens.push(`Estimated tokens: ${number(summary.estimatedTokens)}`); }
     set('tokens', tokens.join(' · ') || 'No token measurements');
-    renderTimeline(); renderRanking(rows); renderTable(rows);
+    renderRanking(rows); renderTable(rows);
 }
 
 document.querySelectorAll<HTMLElement>('[data-action]').forEach(control => {
@@ -203,16 +228,22 @@ element('about-toggle').addEventListener('click', () => {
 for (const id of ['search', 'primitive', 'tag']) {
     element(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
         selectedTag = element<HTMLSelectElement>('tag').value;
-        savePreferences(); render();
+        savePreferences(); renderFiltered();
     });
 }
 element('sort-calls').addEventListener('click', () => {
-    descending = !descending; set('sort-calls', `Calls ${descending ? '↓' : '↑'}`); savePreferences(); render();
+    descending = !descending; set('sort-calls', `Calls ${descending ? '↓' : '↑'}`); savePreferences(); renderTable(filteredRows);
 });
-window.addEventListener('message', (event: MessageEvent<State>) => {
-    if (event.data?.type !== 'state') { return; }
-    state = event.data;
-    render();
+window.addEventListener('message', (event: MessageEvent<StateUpdate>) => {
+    // VS Code forwards host messages from this webview's isolated origin.
+    if (event.origin !== window.location.origin) { return; }
+    const update = event.data;
+    if (update?.type !== 'state' || !Number.isSafeInteger(update.revision) || update.revision < state.revision) { return; }
+    const dataChanged = update.revision !== state.revision;
+    if (dataChanged && !Array.isArray(update.points)) { return; }
+    state = { ...update, snapshot: dataChanged ? update.snapshot : state.snapshot,
+        points: dataChanged ? update.points! : state.points };
+    render(dataChanged);
 });
 restorePreferences();
 vscode.postMessage({ action: 'ready' });

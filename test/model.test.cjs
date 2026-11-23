@@ -10,6 +10,17 @@ function payload(calls = 2, extra = {}) {
         min_duration_ms: 10, max_duration_ms: 10, tags: ['weather'], ...extra }] };
 }
 
+test('Unicode metadata limits match Python character counts while envelopes stay bounded', () => {
+    const tag = '\u{1f30d}'.repeat(100);
+    const name = '\u{1f30d}'.repeat(2048);
+    const result = parseSnapshot(payload(1, { name, tags: [tag] }));
+    assert.equal(result.stats[0].tags[0], tag);
+    assert.equal(result.stats[0].name, name);
+    assert.throws(() => parseSnapshot(payload(1, { tags: [tag + 'x'] })), /text field/);
+    assert.throws(() => parseSnapshot(payload(1, { name: name + 'x' })), /text field/);
+    assert.throws(() => parseSnapshot({ content: [{ type: 'text', text: ' '.repeat(4 * 1024 * 1024 + 1) }] }), /text field/);
+});
+
 test('accepts actual MCP envelopes, preserves unknown migrated outcomes and missing latency', () => {
     for (const wrapper of [value => value, value => ({ structuredContent: value }),
         value => ({ structured_content: value }), value => ({ content: [{ type: 'text', text: JSON.stringify(value) }] })]) {

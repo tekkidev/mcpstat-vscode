@@ -21,6 +21,12 @@ test('connection profiles accept statistics sources and reject embedded credenti
     assert.equal(isStatisticsTool('delete_files'), false);
     assert.deepEqual(parseProfile({ kind: 'editor', tool: 'mcp_weather_get_tool_usage_stats', token: 'secret' }),
         { kind: 'editor', tool: 'mcp_weather_get_tool_usage_stats' });
+    const editorProfile = { kind: 'editor', tool: 'mcp_weather_get_tool_usage_stats' };
+    assert.deepEqual(parseProfile({ ...editorProfile, approvalHelpAcknowledged: true, token: 'secret' }),
+        { ...editorProfile, approvalHelpAcknowledged: true });
+    for (const value of [false, 'true', 1, null, {}]) {
+        assert.deepEqual(parseProfile({ ...editorProfile, approvalHelpAcknowledged: value }), editorProfile);
+    }
     assert.equal(parseProfile({ kind: 'editor', tool: 'delete_files' }), undefined);
     const httpProfile = { kind: 'http', url: 'https://example.com/mcp',
         tool: 'get_tool_usage_stats', credentialId: 'a'.repeat(64) };

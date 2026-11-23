@@ -7,7 +7,7 @@
     "color": "#5b21b6",
     "theme": "dark"
   },
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "vadikus",
   "author": {
     "name": "Vadim Bakhrenkov",
@@ -243,7 +243,7 @@
     "@types/node": "22.20.5",
     "@types/vscode": "1.100.0",
     "@vscode/vsce": "4.1.1",
-    "bootstrap-icons": "1.13.1",
+    "bootstrap-icons": "1.13.2",
     "esbuild": "0.28.2",
     "playwright-core": "1.65.1",
     "typescript": "7.0.2"
@@ -251,5 +251,10 @@
   "dependencies": {
     "@modelcontextprotocol/client": "2.4.0",
     "zod": "4.6.7"
+  },
+  "overrides": {
+    "@vscode/vsce@4.1.1": {
+      "minimatch": "11.0.9"
+    }
   }
 }

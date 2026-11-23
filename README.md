@@ -9,7 +9,7 @@ Monitor Model Context Protocol (MCP) tool, prompt and resource usage, errors and
 directly in VS Code. See which handlers run, which fail, and which have no recorded calls.
 
 Requires **VS Code 1.100+** and a server instrumented with
-**[mcpstat 0.3.0](https://mcpstat.vadim.dev)**.
+**[mcpstat 0.3.0+](https://mcpstat.vadim.dev)**.
 The dashboard reads that server's statistics tool or its local SQLite database.
 It does not automatically track other MCP servers.
 
@@ -51,12 +51,15 @@ counts and can copy a troubleshooting summary containing versions and counts.
 The first statistics request may require approval in VS Code. Allow up to two minutes
 to approve it and receive the result. Editor connections start with manual refresh;
 use **Refresh** for another observation or **Start auto-refresh** for periodic updates.
-When you enable editor auto-refresh, the dashboard shows how to open
+The first time you enable editor auto-refresh for a connection, the dashboard shows how to open
 **Chat: Manage Tool Approval** and pre-approve the selected statistics tool
 (**without approval**). Choose **Start auto-refresh** to continue or **Keep manual
-refresh** to cancel. The dashboard checks whether that command is available;
-VS Code does not expose saved approval grants, so it cannot check your approval
-status or change editor permissions.
+refresh** to cancel. The dashboard remembers your acknowledgement with this
+workspace's saved connection. Later **Start auto-refresh** clicks start directly,
+including after a reload. Reopen the instructions at any time with **Tool approvals**
+in the dashboard header. Selecting a different tool or disconnecting resets the reminder.
+The dashboard checks whether the approval-management command is available.
+VS Code still manages tool permissions; the dashboard cannot read saved approvals.
 
 VS Code controls tool approvals and may ask on every invocation, depending on editor
 version and organization policy. See the [approval instructions](https://code.visualstudio.com/docs/agents/run/approvals#manage-tool-approvals).
@@ -146,13 +149,16 @@ themselves be tracked by the host server.
 An unused handler means zero calls in the available recorded history. Synchronize
 your server's registrations to include unused handlers in the catalog. Latency averages
 use measured samples; historical outcome and latency coverage is shown explicitly.
+A dash (**—**) means a measurement is unavailable; a recorded zero remains **0**.
 A source exceeding 1000 handlers is labelled partial, and interval graphs are disabled.
 The table shows up to 200 matches; search and filters narrow it.
 
 ## Privacy and security
 
 Statistics are processed in the extension host. The connection profile is stored per
-workspace, bearer tokens use VS Code SecretStorage, and chart history stays in memory.
+workspace, bearer tokens use VS Code SecretStorage, and statistics and chart history
+stay in memory. Statistics are not written to saved webview preferences or
+Settings Sync.
 Scripts, styles and charts are bundled with the extension. Documentation links open
 when clicked. The extension does not add telemetry. README screenshots and badges
 are hosted by GitHub and Shields.io; VS Code may fetch them when you open the
@@ -184,6 +190,8 @@ Open the Command Palette to run these commands:
 | **mcpstat: Refresh Dashboard** | Request another observation. |
 | **mcpstat: Clear Dashboard History** | Discard the session's chart observations. |
 | **mcpstat: Disconnect Source** | Clear the saved selection and its HTTP token. |
+
+Open VS Code Settings to change these options:
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
@@ -223,12 +231,12 @@ application, connect the dashboard to the statistics tool of your instrumented s
 
 ## Install from source
 
-See [contributor instructions](CONTRIBUTING.md) to build a VSIX. Install it using
-**Extensions: Install from VSIX**. The extension bundles the official MCP client.
-See [third-party notices](ThirdPartyNotices.md) for dependency licenses, including
-the MCP client (Apache-2.0) and Bootstrap Icons (MIT), including its bundled icon
-font, CSS glyphs and logo artwork. The bundled notices retain
-the dependencies' full license texts and copyright notices.
+See [contributor instructions](CONTRIBUTING.md) to build a VSIX, then install it with
+**Extensions: Install from VSIX**.
+
+Bundled dependencies include the official MCP client (Apache-2.0) and Bootstrap
+Icons (MIT). [Third-party notices](ThirdPartyNotices.md) retain their license and
+copyright texts and cover the icon font, glyphs and logo artwork.
 
 ---
 
